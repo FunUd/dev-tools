@@ -37,7 +37,7 @@
         printf '%s\\n' \"$files\"; \
         printf 'Delete selected untracked files? [y/N] '; read -r answer < /dev/tty; \
         case \"$answer\" in \
-            y|Y) printf '%s\\n' \"$files\" | while IFS= read -r file; do rm -rf -- \"$file\" || exit 1; done ;; \
+            y|Y) printf '%s\\n' \"$files\" | while IFS= read -r file; do git clean -fd -- \"$file\" || echo \"failed: $file\" >&2; done ;; \
             *) echo 'Cancelled.' ;; \
         esac; \
     }; f"
@@ -68,9 +68,9 @@
     addf = "!f() { \
         files=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u | \
             fzf --multi --prompt='stage files> ' \
-                --preview 'git diff --color=always -- {}'); \
+                --preview 'git diff --color=always HEAD -- {} 2>/dev/null; cat -- {} 2>/dev/null | head -n 50'); \
         [ -n \"$files\" ] || return 0; \
-        printf '%s\\n' \"$files\" | while IFS= read -r file; do git add -- \"$file\" || exit 1; done; \
+        printf '%s\\n' \"$files\" | while IFS= read -r file; do git add -- \"$file\" || echo \"failed: $file\" >&2; done; \
     }; f"
 
     # fzfでステージ済みファイルを複数選択してステージ解除
@@ -79,7 +79,7 @@
             fzf --multi --prompt='unstage files> ' \
                 --preview 'git diff --cached --color=always -- {}'); \
         [ -n \"$files\" ] || return 0; \
-        printf '%s\\n' \"$files\" | while IFS= read -r file; do git restore --staged -- \"$file\" || exit 1; done; \
+        printf '%s\\n' \"$files\" | while IFS= read -r file; do git restore --staged -- \"$file\" || echo \"failed: $file\" >&2; done; \
     }; f"
 
     # fzfでコミットを選んでrevert（確認あり）
@@ -109,16 +109,16 @@
             fzf --multi --prompt='cherry-pick> ' \
                 --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$entries\" ] || return 0; \
-        printf '%s\\n' \"$entries\" | awk '{print $1}' | xargs git cherry-pick; \
+        printf '%s\\n' \"$entries\" | awk '{print $1}' | awk '{a[NR]=$1} END {for (i=NR;i>=1;i--) print a[i]}' | xargs git cherry-pick; \
     }; f"
 
     # --- 3. ログ表示 ---
     lg = log --graph --oneline --decorate
     lga = log --graph --all --pretty=format:'%C(yellow)%h%Creset -%C(auto)%d%Creset %s %C(green)(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
-    lgn = !"git lga -n 10"
+    lgn = lga -n 10
     last = log -1 --stat --decorate --oneline
     lgs = log --graph --stat --name-status --pretty=format:'%C(yellow)commit %h%Creset%C(auto)%d%Creset%nAuthor: %an <%ae>%nDate:   %cd%n%n    %s%n'
-    lgh = !sh -c 'git log --graph --pretty=format:"%C(yellow)%h%Creset -%C(auto)%d%Creset %s %C(green)(%cr) %C(bold blue)<%an>%Creset" -G"$1"' -
+    lgh = !"sh -c 'if [ -z \"$1\" ]; then echo \"使い方: git lgh <検索語>\" >&2; exit 2; fi; git log --graph --all --pretty=format:\"%C(yellow)%h%Creset -%C(auto)%d%Creset %s %C(green)(%cr) %C(bold blue)<%an>%Creset\" -G\"$@\"' -"
 
     # fzfでコミットを検索して詳細表示
     lgf = "!f() { \
@@ -149,7 +149,7 @@
 
     # --- 4. ブランチ管理 ---
     br = branch -vv --sort=-committerdate
-    brs = branch -vv
+    brs = branch -a -vv --sort=-committerdate
     brm = branch -m
 
     # デフォルトブランチへのマージ済みブランチを確認して削除
@@ -161,7 +161,7 @@
         default_ref=$(git symbolic-ref refs/remotes/origin/HEAD) || return 1; \
         default_branch=${default_ref#refs/remotes/origin/}; \
         echo 'Fetching remote status and pruning...'; \
-        git fetch -p || return 1; \
+        git fetch origin --prune || return 1; \
         git show-ref --verify --quiet \"refs/remotes/origin/$default_branch\" || { echo 'Error: デフォルトブランチが見つかりません。' >&2; return 1; }; \
         current=$(git branch --show-current); \
         branches=$(git branch --merged \"origin/$default_branch\" --format='%(refname:short)' | \
@@ -171,7 +171,7 @@
         printf '%s\\n' \"$branches\"; \
         printf '本当に削除しますか？ [y/N]: '; read -r answer < /dev/tty; \
         case \"$answer\" in \
-            y|Y) printf '%s\\n' \"$branches\" | while IFS= read -r branch; do git branch -d -- \"$branch\" || exit 1; done ;; \
+            y|Y) printf '%s\\n' \"$branches\" | while IFS= read -r branch; do git branch -d -- \"$branch\" || echo \"failed: $branch\" >&2; done ;; \
             *) echo 'キャンセルしました。' ;; \
         esac; \
     }; _bclean"
@@ -206,7 +206,7 @@
         printf '%s\\n' \"$branches\"; \
         printf 'Delete selected merged branches? [y/N] '; read -r answer < /dev/tty; \
         case \"$answer\" in \
-            y|Y) printf '%s\\n' \"$branches\" | while IFS= read -r branch; do git branch -d -- \"$branch\" || exit 1; done ;; \
+            y|Y) printf '%s\\n' \"$branches\" | while IFS= read -r branch; do git branch -d -- \"$branch\" || echo \"failed: $branch\" >&2; done ;; \
             *) echo 'Cancelled.' ;; \
         esac; \
     }; f"
@@ -231,7 +231,7 @@
         printf '%s\\n' \"$branches\"; \
         printf 'Delete selected branches? [y/N] '; read -r answer < /dev/tty; \
         case \"$answer\" in \
-            y|Y) printf '%s\\n' \"$branches\" | while IFS= read -r branch; do git branch -d -- \"$branch\" || exit 1; done ;; \
+            y|Y) printf '%s\\n' \"$branches\" | while IFS= read -r branch; do git branch -d -- \"$branch\" || echo \"failed: $branch\" >&2; done ;; \
             *) echo 'Cancelled.' ;; \
         esac; \
     }; f"
@@ -255,6 +255,7 @@
             safe_name=$(printf \"%s-%s\" \"$repo_name\" \"$branch\" | sed \"s#[^A-Za-z0-9._-]#-#g\"); \
             path=\"$repo_root/../$safe_name\"; \
         fi; \
+        if [ -e \"$path\" ]; then echo \"Error: パス [$path] は既に存在します。\" >&2; exit 1; fi; \
         echo \"既存ブランチ [$branch] を [$path] に展開します...\"; \
         git worktree add \"$path\" \"$branch\"' -"
 
@@ -340,10 +341,10 @@
 
     # --- 6. add -p ---
     ap = add -p
-    ad = !git diff && git add -p
-    aps = !git add -p && git status --short
-    apc = !git add -p && git commit
-    apcm = !git add -p && git commit -m
+    ad = "!f() { git --no-pager diff; git add -p; }; f"
+    aps = "!f() { git add -p && git status --short; }; f"
+    apc = "!f() { git add -p && git commit \"$@\"; }; f"
+    apcm = "!f() { if [ $# -eq 0 ]; then echo '使い方: git apcm \"<メッセージ>\"' >&2; return 2; fi; git add -p && git commit -m \"$@\"; }; f"
 
     # --- 7. Stash ---
     sl = stash list
@@ -371,7 +372,7 @@
     # --- 8. 差分・履歴操作 ---
     d = diff
     dc = diff --cached
-    uncommit = reset --soft HEAD^
+    uncommit = !"sh -c 'if ! git rev-parse --verify --quiet HEAD^ >/dev/null; then echo \"Error: 取り消せるコミットがありません。(rootコミット)\" >&2; exit 1; fi; git reset --soft HEAD^' -"
     dw = diff -w --ignore-all-space
     dwo = diff --word-diff
 
@@ -407,7 +408,7 @@
             fzf --prompt='target commit> ' --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$target_entry\" ] || return 0; target=${target_entry%% *}; \
         file=$(git diff --name-only \"$base\" \"$target\" | \
-            fzf --prompt='changed files> ' --preview \"git diff --color=always $base $target -- {}\"); \
+            fzf --prompt='changed files> ' --preview 'git diff --color=always '$base' '$target' -- {}'); \
         [ -n \"$file\" ] || return 0; git diff \"$base\" \"$target\" -- \"$file\"; \
     }; f"
 
@@ -439,9 +440,9 @@
     hotfiles = !"git log --name-only --since='1 month ago' --pretty=format: | grep -v '^$' | sort | uniq -c | sort -nr | head -n 20"
 
     # --- 10. その他 ---
-    db = !"sh -c 'ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) || { echo \"Error: origin/HEAD が未設定です。\" >&2; exit 1; }; git switch \"${ref#refs/remotes/origin/}\"'"
+    db = !"sh -c 'ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) || { echo \"Error: origin/HEAD が未設定です。\" >&2; exit 1; }; git fetch origin --prune && git switch \"${ref#refs/remotes/origin/}\"'"
 
-    rdb = !"sh -c 'ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) || { echo \"Error: origin/HEAD が未設定です。\" >&2; exit 1; }; git fetch origin && git rebase \"${ref/refs\\/remotes\\//}\" --autostash'"
+    rdb = !"sh -c 'ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) || { echo \"Error: origin/HEAD が未設定です。\" >&2; exit 1; }; git fetch origin --prune && git rebase \"${ref#refs/remotes/}\" --autostash'"
 
 
 [aliasdoc]
@@ -498,12 +499,12 @@
 
     # --- ブランチ整理 ---
     br = 61|ブランチ整理|更新日時の新しい順にブランチを表示する / 使い方: git br
-    brs = 62|ブランチ整理|ブランチ詳細一覧を表示する / 使い方: git brs
+    brs = 62|ブランチ整理|リモート含むブランチ詳細一覧を表示する / 使い方: git brs
     brm = 63|ブランチ整理|ブランチ名を変更する / 使い方: git brm <新しいブランチ名>
     bclean = 65|ブランチ整理|デフォルトブランチにマージ済みのブランチを確認後に削除する / 使い方: git bclean
     bcleanf = 66|ブランチ整理|マージ済みブランチを選択して削除する / 使い方: git bcleanf
     rbf = 67|ブランチ整理|リモートブランチを選択して追跡ブランチを作成・切り替える / 使い方: git rbf
-    brdf = 69|ブランチ整理|fzfでブランチを選択して削除する / 使い方: git brdf
+    brdf = 68|ブランチ整理|fzfでブランチを選択して削除する / 使い方: git brdf
     mergef = 69|ブランチ整理|fzfでブランチを選択してマージする / 使い方: git mergef
 
     # --- worktree ---
