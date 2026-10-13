@@ -18,7 +18,6 @@
     back = switch -
     rs = restore
     unstage = restore --staged
-    restore-to = restore --source
 
     # fzfでローカルブランチを検索して切り替える
     swf = "!f() { \
@@ -27,6 +26,20 @@
                 --preview 'git log -5 --oneline --decorate --color=always {}'); \
         [ -n \"$branch\" ] || return 0; \
         git switch -- \"$branch\"; \
+    }; f"
+
+    # fzfで未追跡ファイルを選択して削除（確認あり）
+    cleanf = "!f() { \
+        files=$(git ls-files --others --exclude-standard --directory | \
+            fzf --multi --prompt='delete untracked> ' \
+                --preview 'ls -la -- \"{}\"'); \
+        [ -n \"$files\" ] || return 0; \
+        printf '%s\\n' \"$files\"; \
+        printf 'Delete selected untracked files? [y/N] '; read -r answer < /dev/tty; \
+        case \"$answer\" in \
+            y|Y) printf '%s\\n' \"$files\" | while IFS= read -r file; do rm -rf -- \"$file\" || exit 1; done ;; \
+            *) echo 'Cancelled.' ;; \
+        esac; \
     }; f"
 
     # --- 2. 基本操作・コミット ---
@@ -46,13 +59,9 @@
             git log -1 --pretty=format:'%C(yellow)%h%Creset - %s %C(green)(%cr)%Creset'; echo; \
         fi; \
     }; _st"
-    sts = !"git status -sb && echo '' && git diff --stat"
-    std = !"git status -sb && echo '--- 変更箇所 (単語単位) ---' && git diff --color-words"
     cm = commit -m
     cma = commit --amend
     ca = commit --amend --no-edit
-    fixup = commit --fixup
-    squash = commit --squash
     aa = add -A
 
     # fzfで変更ファイルを複数選択してステージング
@@ -85,32 +94,37 @@
         case \"$answer\" in y|Y) git revert \"$commit\" ;; *) echo 'Cancelled.' ;; esac; \
     }; f"
 
+    # fzfでfixup対象のコミットを選択してfixupコミットを作成
+    fixupf = "!f() { \
+        entry=$(git log --all --no-merges --color=never --format='%h %s' | \
+            fzf --prompt='fixup target> ' \
+                --preview 'git show --stat --oneline --color=always {1}'); \
+        [ -n \"$entry\" ] || return 0; \
+        git commit --fixup \"${entry%% *}\"; \
+    }; f"
+
+    # fzfで複数コミットを選択してcherry-pick
+    cherryf = "!f() { \
+        entries=$(git log --all --no-merges --color=never --format='%h %s' | \
+            fzf --multi --prompt='cherry-pick> ' \
+                --preview 'git show --stat --oneline --color=always {1}'); \
+        [ -n \"$entries\" ] || return 0; \
+        printf '%s\\n' \"$entries\" | awk '{print $1}' | xargs git cherry-pick; \
+    }; f"
+
     # --- 3. ログ表示 ---
     lg = log --graph --oneline --decorate
     lga = log --graph --all --pretty=format:'%C(yellow)%h%Creset -%C(auto)%d%Creset %s %C(green)(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
     lgn = !"git lga -n 10"
     last = log -1 --stat --decorate --oneline
     lgs = log --graph --stat --name-status --pretty=format:'%C(yellow)commit %h%Creset%C(auto)%d%Creset%nAuthor: %an <%ae>%nDate:   %cd%n%n    %s%n'
-    lgf = !sh -c 'git log --follow --graph --pretty=format:"%C(yellow)%h%Creset -%C(auto)%d%Creset %s %C(green)(%cr) %C(bold blue)<%an>%Creset" -p -- "$1"' -
     lgh = !sh -c 'git log --graph --pretty=format:"%C(yellow)%h%Creset -%C(auto)%d%Creset %s %C(green)(%cr) %C(bold blue)<%an>%Creset" -G"$1"' -
 
     # fzfでコミットを検索して詳細表示
-    showf = "!f() { \
+    lgf = "!f() { \
         entry=$(git log --all --color=never --format='%h %s (%cr) <%an>' | \
             fzf --no-sort --prompt='commit> ' \
                 --preview 'git show --stat --oneline --decorate --color=always {1}'); \
-        [ -n \"$entry\" ] || return 0; \
-        git show --color=always \"${entry%% *}\"; \
-    }; f"
-
-    # コミットメッセージを文字列検索
-    findc = "!f() { \
-        printf 'Keyword: '; read -r keyword < /dev/tty; \
-        [ -n \"$keyword\" ] || return 0; \
-        entry=$(git log --all --fixed-strings --regexp-ignore-case --grep=\"$keyword\" \
-            --color=never --format='%h %s (%cr)' | \
-            fzf --prompt='matching commits> ' \
-                --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
         git show --color=always \"${entry%% *}\"; \
     }; f"
@@ -162,19 +176,6 @@
         esac; \
     }; _bclean"
 
-    fa = !"git fetch --prune --all && echo 'All remotes fetched and pruned.'"
-
-    # fzfでブランチを2つ選んで比較
-    bdiff = "!f() { \
-        base=$(git branch --format='%(refname:short)' | \
-            fzf --prompt='base branch> ' --preview 'git log -5 --oneline --decorate --color=always {}'); \
-        [ -n \"$base\" ] || return 0; \
-        target=$(git branch --format='%(refname:short)' | \
-            fzf --prompt='compare branch> ' --preview 'git log -5 --oneline --decorate --color=always {}'); \
-        [ -n \"$target\" ] || return 0; \
-        git diff --stat \"$base...$target\" && git diff \"$base...$target\"; \
-    }; f"
-
     # fzfでリモートブランチを選択して追跡ブランチを作成・切り替え
     rbf = "!f() { \
         remote=$(git for-each-ref --format='%(refname:short)' refs/remotes | \
@@ -204,6 +205,31 @@
         [ -n \"$branches\" ] || return 0; \
         printf '%s\\n' \"$branches\"; \
         printf 'Delete selected merged branches? [y/N] '; read -r answer < /dev/tty; \
+        case \"$answer\" in \
+            y|Y) printf '%s\\n' \"$branches\" | while IFS= read -r branch; do git branch -d -- \"$branch\" || exit 1; done ;; \
+            *) echo 'Cancelled.' ;; \
+        esac; \
+    }; f"
+
+    # fzfでブランチを選択して現在のブランチにマージ
+    mergef = "!f() { \
+        current=$(git branch --show-current); \
+        branch=$(git branch --format='%(refname:short)' | grep -Fxv \"$current\" | \
+            fzf --prompt='merge branch> ' \
+                --preview 'git log --oneline --decorate --color=always HEAD..{} | head -n 20'); \
+        [ -n \"$branch\" ] || return 0; \
+        git merge \"$branch\"; \
+    }; f"
+
+    # fzfでブランチを選択して削除（確認あり）
+    brdf = "!f() { \
+        current=$(git branch --show-current); \
+        branches=$(git branch --format='%(refname:short)' | grep -Fxv \"$current\" | \
+            fzf --multi --prompt='delete branches> ' \
+                --preview 'git log -3 --oneline --decorate --color=always {}'); \
+        [ -n \"$branches\" ] || return 0; \
+        printf '%s\\n' \"$branches\"; \
+        printf 'Delete selected branches? [y/N] '; read -r answer < /dev/tty; \
         case \"$answer\" in \
             y|Y) printf '%s\\n' \"$branches\" | while IFS= read -r branch; do git branch -d -- \"$branch\" || exit 1; done ;; \
             *) echo 'Cancelled.' ;; \
@@ -288,6 +314,30 @@
         printf 'Copied: %s\\n' \"$path\"; \
     }; f"
 
+    # fzfで既存ブランチを選択してworktreeに展開
+    wtaf = "!f() { \
+        branch=$(git branch --format='%(refname:short)' | \
+            fzf --prompt='worktree branch> ' \
+                --preview 'git log -5 --oneline --decorate --color=always {}'); \
+        [ -n \"$branch\" ] || return 0; \
+        repo_root=$(git rev-parse --show-toplevel) || return 1; \
+        repo_name=$(basename \"$repo_root\"); \
+        safe_name=$(printf \"%s-%s\" \"$repo_name\" \"$branch\" | sed \"s#[^A-Za-z0-9._-]#-#g\"); \
+        path=\"$repo_root/../$safe_name\"; \
+        echo \"既存ブランチ [$branch] を [$path] に展開します...\"; \
+        git worktree add \"$path\" \"$branch\"; \
+    }; f"
+
+    # fzfでworktreeを選択して削除（確認あり）
+    wtrf = "!f() { \
+        path=$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' | tail -n +2 | \
+            fzf --prompt='remove worktree> ' \
+                --preview 'git -C \"{}\" status -sb && git -C \"{}\" log -3 --oneline --decorate --color=always'); \
+        [ -n \"$path\" ] || return 0; \
+        printf 'Remove worktree %s? [y/N] ' \"$path\"; read -r answer < /dev/tty; \
+        case \"$answer\" in y|Y) git worktree remove -- \"$path\" ;; *) echo 'Cancelled.' ;; esac; \
+    }; f"
+
     # --- 6. add -p ---
     ap = add -p
     ad = !git diff && git add -p
@@ -299,11 +349,9 @@
     sl = stash list
     sa = stash apply
     sp = stash push -m
-    stash-wip = stash push --include-untracked -m "wip"
-    unsh = stash pop --index
 
     # fzfでstashを検索して適用（削除しない）
-    stashf = "!f() { \
+    saf = "!f() { \
         entry=$(git stash list --format='%gd %gs' | \
             fzf --prompt='stash> ' --preview 'git stash show --stat --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
@@ -311,7 +359,7 @@
     }; f"
 
     # fzfでstashを選択して削除
-    stashdropf = "!f() { \
+    sdf = "!f() { \
         entry=$(git stash list --format='%gd %gs' | \
             fzf --prompt='drop stash> ' --preview 'git stash show --stat --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
@@ -326,10 +374,15 @@
     uncommit = reset --soft HEAD^
     dw = diff -w --ignore-all-space
     dwo = diff --word-diff
-    reword-at = !sh -c ' \
-        if [ -z \"$1\" ]; then echo \"使い方: git reword-at <commit>\" >&2; exit 2; fi; \
-        git commit --allow-empty --fixup=reword:\"$1\" && \
-        GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash \"$1\"~1' -
+
+    # fzfで基点を選択してautosquashリベース
+    riaf = "!f() { \
+        entry=$(git log --color=never --format='%h %s' | \
+            fzf --prompt='rebase base> ' \
+                --preview 'git show --stat --oneline --color=always {1}'); \
+        [ -n \"$entry\" ] || return 0; \
+        GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash \"${entry%% *}\"; \
+    }; f"
 
     # fzfで未ステージ差分を表示
     dfu = "!f() { \
@@ -366,7 +419,6 @@
     }; f"
 
     # --- 9. 分析・調査 ---
-    today = !"git log --author=\"$(git config user.name)\" --since='midnight' --no-merges --pretty=format:'%C(yellow)%h%Creset %s (%cr)'"
     hh = !"_hh() { \
         count=${1:-1}; \
         case \"$count\" in ''|*[!0-9]*|0) echo 'Error: count は正の整数を指定してください。' >&2; return 2 ;; esac; \
@@ -385,15 +437,10 @@
     cfe = !"git diff --name-only -z --diff-filter=U | xargs -0 -r code --wait"
 
     hotfiles = !"git log --name-only --since='1 month ago' --pretty=format: | grep -v '^$' | sort | uniq -c | sort -nr | head -n 20"
-    changelog = !"sh -c 'tag=$(git describe --tags --abbrev=0 2>/dev/null) || { echo \"Error: タグがありません。\" >&2; exit 1; }; git log \"$tag..HEAD\" --oneline'"
-
-    ref = reflog --date=relative
 
     # --- 10. その他 ---
     db = !"sh -c 'ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) || { echo \"Error: origin/HEAD が未設定です。\" >&2; exit 1; }; git switch \"${ref#refs/remotes/origin/}\"'"
 
-    up = pull --rebase --autostash
-    pub = !"git push -u origin HEAD"
     rdb = !"sh -c 'ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) || { echo \"Error: origin/HEAD が未設定です。\" >&2; exit 1; }; git fetch origin && git rebase \"${ref/refs\\/remotes\\//}\" --autostash'"
 
 
@@ -406,8 +453,8 @@
     back = 12|切り替え・復元|直前にいたブランチに戻る / 使い方: git back
     rs = 13|切り替え・復元|作業ツリーの変更を破棄する / 使い方: git rs <ファイル名>
     unstage = 14|切り替え・復元|ステージングを取り消す / 使い方: git unstage <ファイル名>
-    restore-to = 15|切り替え・復元|指定コミットの内容でファイルを復元する / 使い方: git restore-to <commit> <ファイル名>
     swf = 16|切り替え・復元|fzfでブランチを検索して切り替える / 使い方: git swf
+    cleanf = 17|切り替え・復元|fzfで未追跡ファイルを選択して削除する / 使い方: git cleanf
 
     # --- コミット・変更 ---
     st = 20|コミット・変更|状態、コンフリクト、stash、直近コミットを表示 / 使い方: git st
@@ -415,18 +462,16 @@
     cm = 22|コミット・変更|メッセージ付きでコミットする / 使い方: git cm "<メッセージ>"
     cma = 23|コミット・変更|直近コミットを修正する / 使い方: git cma
     ca = 24|コミット・変更|直近コミットに変更を統合する / 使い方: git ca
-    fixup = 25|コミット・変更|指定コミット向けのfixupコミットを作成する / 使い方: git fixup <commit>
-    squash = 26|コミット・変更|指定コミット向けのsquashコミットを作成する / 使い方: git squash <commit>
     ap = 27|コミット・変更|差分を選択してステージングする / 使い方: git ap
     ad = 28|コミット・変更|差分を表示してadd -pを開始する / 使い方: git ad
     aps = 29|コミット・変更|add -p後にステータスを表示する / 使い方: git aps
     apc = 30|コミット・変更|add -p後にコミットする / 使い方: git apc
     apcm = 31|コミット・変更|add -p後にメッセージ付きでコミットする / 使い方: git apcm "<メッセージ>"
-    sts = 32|コミット・変更|ステータスと差分統計を表示する / 使い方: git sts
-    std = 33|コミット・変更|ステータスと単語単位の差分を表示する / 使い方: git std
     addf = 34|コミット・変更|fzfで変更ファイルを選択してステージングする / 使い方: git addf
     unstagef = 35|コミット・変更|fzfでステージ済みファイルを選択して解除する / 使い方: git unstagef
     revertf = 36|コミット・変更|fzfでコミットを選択してrevertする / 使い方: git revertf
+    fixupf = 37|コミット・変更|fzfでコミットを選択してfixupコミットを作成する / 使い方: git fixupf
+    cherryf = 38|コミット・変更|fzfで複数コミットを選択してcherry-pickする / 使い方: git cherryf
 
     # --- 差分・修正 ---
     d = 40|差分・修正|差分を表示する / 使い方: git d
@@ -434,7 +479,7 @@
     dw = 42|差分・修正|空白差分を無視する / 使い方: git dw
     dwo = 43|差分・修正|単語単位で差分を表示する / 使い方: git dwo
     uncommit = 44|差分・修正|直近コミットを取り消して変更を保持する / 使い方: git uncommit
-    reword-at = 45|差分・修正|過去コミットのメッセージを修正する / 使い方: git reword-at <hash>
+    riaf = 45|差分・修正|fzfで基点を選択してautosquashリベースする / 使い方: git riaf
     dfu = 46|差分・修正|fzfで未ステージ差分を選択して表示する / 使い方: git dfu
     dfs = 47|差分・修正|fzfでステージ済み差分を選択して表示する / 使い方: git dfs
     rangef = 48|差分・修正|2コミット間の変更ファイルを選択して表示する / 使い方: git rangef
@@ -446,10 +491,8 @@
     lgn = 52|ログ・履歴|直近10件の履歴を表示する / 使い方: git lgn
     last = 53|ログ・履歴|直近コミットの要約と統計を表示する / 使い方: git last
     lgs = 54|ログ・履歴|ファイル変更統計付きでログを表示する / 使い方: git lgs
-    lgf = 55|ログ・履歴|指定ファイルの履歴と差分を追跡する / 使い方: git lgf <ファイル名>
+    lgf = 55|ログ・履歴|fzfでコミットを検索して詳細表示する / 使い方: git lgf
     lgh = 56|ログ・履歴|差分内容から正規表現で検索する / 使い方: git lgh <検索語>
-    showf = 57|ログ・履歴|fzfでコミットを検索して詳細表示する / 使い方: git showf
-    findc = 58|ログ・履歴|コミットメッセージを文字列検索する / 使い方: git findc
     reflogf = 59|ログ・履歴|reflogを検索して選択地点を表示する / 使い方: git reflogf
     filelogf = 60|ログ・履歴|ファイルを選択して履歴を表示する / 使い方: git filelogf
 
@@ -457,11 +500,11 @@
     br = 61|ブランチ整理|更新日時の新しい順にブランチを表示する / 使い方: git br
     brs = 62|ブランチ整理|ブランチ詳細一覧を表示する / 使い方: git brs
     brm = 63|ブランチ整理|ブランチ名を変更する / 使い方: git brm <新しいブランチ名>
-    bdiff = 64|ブランチ整理|2ブランチ間の差分を表示する / 使い方: git bdiff
     bclean = 65|ブランチ整理|デフォルトブランチにマージ済みのブランチを確認後に削除する / 使い方: git bclean
     bcleanf = 66|ブランチ整理|マージ済みブランチを選択して削除する / 使い方: git bcleanf
     rbf = 67|ブランチ整理|リモートブランチを選択して追跡ブランチを作成・切り替える / 使い方: git rbf
-    fa = 68|ブランチ整理|全リモートを取得し削除済み参照を整理する / 使い方: git fa
+    brdf = 69|ブランチ整理|fzfでブランチを選択して削除する / 使い方: git brdf
+    mergef = 69|ブランチ整理|fzfでブランチを選択してマージする / 使い方: git mergef
 
     # --- worktree ---
     wt = 70|worktree|worktreeサブコマンドを実行する / 使い方: git wt <サブコマンド>
@@ -469,35 +512,24 @@
     wta = 72|worktree|既存ブランチをworktreeとして展開する / 使い方: git wta <branch> [<path>]
     wtn = 73|worktree|新規ブランチをworktreeとして展開する / 使い方: git wtn <branch> [--start-point <ref>] [--path <path>]
     wtp = 74|worktree|worktreeのパスを選択してクリップボードにコピーする / 使い方: git wtp
-
-    # --- add -p ---
-    ap = 80|部分ステージング|差分を選択してステージングする / 使い方: git ap
-    ad = 81|部分ステージング|差分を確認してから部分ステージングする / 使い方: git ad
-    aps = 82|部分ステージング|部分ステージング後に状態を表示する / 使い方: git aps
-    apc = 83|部分ステージング|部分ステージング後にコミットする / 使い方: git apc
-    apcm = 84|部分ステージング|部分ステージング後にメッセージ付きでコミットする / 使い方: git apcm "<メッセージ>"
+    wtr = 75|worktree|worktreeを削除する / 使い方: git wtr <パス>
+    wtaf = 76|worktree|fzfで既存ブランチを選択してworktreeに展開する / 使い方: git wtaf
+    wtrf = 77|worktree|fzfでworktreeを選択して削除する / 使い方: git wtrf
 
     # --- stash ---
     sl = 90|stash|stash一覧を表示する / 使い方: git sl
     sa = 91|stash|stashを適用する / 使い方: git sa <stash>
     sp = 92|stash|メッセージ付きでstashに退避する / 使い方: git sp "<メッセージ>"
-    stash-wip = 93|stash|未追跡ファイルも含めてWIPとして退避する / 使い方: git stash-wip
-    unsh = 94|stash|stashをステージ状態も含めて復元する / 使い方: git unsh
-    stashf = 95|stash|fzfでstashを選択して適用する / 使い方: git stashf
-    stashdropf = 96|stash|fzfでstashを選択して削除する / 使い方: git stashdropf
+    saf = 95|stash|fzfでstashを選択して適用する / 使い方: git saf
+    sdf = 96|stash|fzfでstashを選択して削除する / 使い方: git sdf
 
     # --- 分析・調査 ---
-    today = 100|分析・調査|今日の自分のコミットを表示する / 使い方: git today
     hh = 101|分析・調査|直近コミットのハッシュをクリップボードにコピーする / 使い方: git hh [件数]
     lf = 102|分析・調査|行数の多い追跡ファイルを表示する / 使い方: git lf
     cf = 103|分析・調査|コンフリクトファイル名を表示する / 使い方: git cf
     cfe = 104|分析・調査|コンフリクトファイルをVS Codeで開く / 使い方: git cfe
     hotfiles = 105|分析・調査|直近1か月で変更頻度の高いファイルを表示する / 使い方: git hotfiles
-    changelog = 106|分析・調査|最新タグからHEADまでのコミットを表示する / 使い方: git changelog
-    ref = 107|分析・調査|reflogを表示する / 使い方: git ref
 
     # --- その他 ---
     db = 110|その他|リモートのデフォルトブランチに切り替える / 使い方: git db
-    up = 111|その他|autostash付きでrebase pullする / 使い方: git up
-    pub = 112|その他|現在のブランチをoriginにpushして追跡設定する / 使い方: git pub
     rdb = 113|その他|originのデフォルトブランチを取得してrebaseする / 使い方: git rdb
