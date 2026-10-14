@@ -23,7 +23,7 @@
     swf = "!f() { \
         branch=$(git branch --format='%(refname:short)' | \
             fzf --prompt='branch> ' \
-                --preview 'git log -5 --oneline --decorate --color=always {}'); \
+                --preview 'git log -5 --oneline --decorate --color=always {q}'); \
         [ -n \"$branch\" ] || return 0; \
         git switch -- \"$branch\"; \
     }; f"
@@ -32,7 +32,7 @@
     cleanf = "!f() { \
         files=$(git ls-files --others --exclude-standard --directory | \
             fzf --multi --prompt='delete untracked> ' \
-                --preview 'ls -la -- \"{}\"'); \
+                --preview 'ls -la -- {q}'); \
         [ -n \"$files\" ] || return 0; \
         printf '%s\\n' \"$files\"; \
         printf 'Delete selected untracked files? [y/N] '; read -r answer < /dev/tty; \
@@ -68,7 +68,7 @@
     addf = "!f() { \
         files=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u | \
             fzf --multi --prompt='stage files> ' \
-                --preview 'git diff --color=always HEAD -- {} 2>/dev/null; cat -- {} 2>/dev/null | head -n 50'); \
+                --preview 'git diff --color=always HEAD -- {q} 2>/dev/null; cat -- {q} 2>/dev/null | head -n 50'); \
         [ -n \"$files\" ] || return 0; \
         printf '%s\\n' \"$files\" | while IFS= read -r file; do git add -- \"$file\" || echo \"failed: $file\" >&2; done; \
     }; f"
@@ -77,7 +77,7 @@
     unstagef = "!f() { \
         files=$(git diff --cached --name-only | \
             fzf --multi --prompt='unstage files> ' \
-                --preview 'git diff --cached --color=always -- {}'); \
+                --preview 'git diff --cached --color=always -- {q}'); \
         [ -n \"$files\" ] || return 0; \
         printf '%s\\n' \"$files\" | while IFS= read -r file; do git restore --staged -- \"$file\" || echo \"failed: $file\" >&2; done; \
     }; f"
@@ -109,7 +109,7 @@
             fzf --multi --prompt='cherry-pick> ' \
                 --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$entries\" ] || return 0; \
-        printf '%s\\n' \"$entries\" | awk '{print $1}' | awk '{a[NR]=$1} END {for (i=NR;i>=1;i--) print a[i]}' | xargs git cherry-pick; \
+        printf '%s\\n' \"$entries\" | awk '{print $1}' | awk '{a[NR]=$1} END {for (i=NR;i>=1;i--) print a[i]}' | while IFS= read -r c; do [ -n \"$c\" ] || continue; git cherry-pick -- \"$c\" || break; done; \
     }; f"
 
     # --- 3. ログ表示 ---
@@ -142,7 +142,7 @@
     filelogf = "!f() { \
         file=$(git ls-files | \
             fzf --prompt='file history> ' \
-                --preview 'git log --follow --oneline --decorate -- {}'); \
+                --preview 'git log --follow --oneline --decorate -- {q}'); \
         [ -n \"$file\" ] || return 0; \
         git log --follow --oneline --decorate -- \"$file\"; \
     }; f"
@@ -180,7 +180,7 @@
     rbf = "!f() { \
         remote=$(git for-each-ref --format='%(refname:short)' refs/remotes | \
             grep -v '/HEAD$' | \
-            fzf --prompt='remote branch> ' --preview 'git log -5 --oneline --decorate --color=always {}'); \
+            fzf --prompt='remote branch> ' --preview 'git log -5 --oneline --decorate --color=always {q}'); \
         [ -n \"$remote\" ] || return 0; \
         local_branch=${remote#*/}; \
         if git show-ref --verify --quiet \"refs/heads/$local_branch\"; then \
@@ -201,7 +201,7 @@
         branches=$(git branch --merged \"origin/$default_branch\" --format='%(refname:short)' | \
             grep -Fxv \"$default_branch\" | grep -Fxv \"$current\" | \
             fzf --multi --prompt='merged branches> ' \
-                --preview 'git log -3 --oneline --decorate --color=always {}'); \
+                --preview 'git log -3 --oneline --decorate --color=always {q}'); \
         [ -n \"$branches\" ] || return 0; \
         printf '%s\\n' \"$branches\"; \
         printf 'Delete selected merged branches? [y/N] '; read -r answer < /dev/tty; \
@@ -216,9 +216,9 @@
         current=$(git branch --show-current); \
         branch=$(git branch --format='%(refname:short)' | grep -Fxv \"$current\" | \
             fzf --prompt='merge branch> ' \
-                --preview 'git log --oneline --decorate --color=always HEAD..{} | head -n 20'); \
+                --preview 'git log --oneline --decorate --color=always HEAD..{q} | head -n 20'); \
         [ -n \"$branch\" ] || return 0; \
-        git merge \"$branch\"; \
+        git merge -- \"$branch\"; \
     }; f"
 
     # fzfでブランチを選択して削除（確認あり）
@@ -226,7 +226,7 @@
         current=$(git branch --show-current); \
         branches=$(git branch --format='%(refname:short)' | grep -Fxv \"$current\" | \
             fzf --multi --prompt='delete branches> ' \
-                --preview 'git log -3 --oneline --decorate --color=always {}'); \
+                --preview 'git log -3 --oneline --decorate --color=always {q}'); \
         [ -n \"$branches\" ] || return 0; \
         printf '%s\\n' \"$branches\"; \
         printf 'Delete selected branches? [y/N] '; read -r answer < /dev/tty; \
@@ -319,7 +319,7 @@
     wtaf = "!f() { \
         branch=$(git branch --format='%(refname:short)' | \
             fzf --prompt='worktree branch> ' \
-                --preview 'git log -5 --oneline --decorate --color=always {}'); \
+                --preview 'git log -5 --oneline --decorate --color=always {q}'); \
         [ -n \"$branch\" ] || return 0; \
         repo_root=$(git rev-parse --show-toplevel) || return 1; \
         repo_name=$(basename \"$repo_root\"); \
@@ -333,7 +333,7 @@
     wtrf = "!f() { \
         path=$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' | tail -n +2 | \
             fzf --prompt='remove worktree> ' \
-                --preview 'git -C \"{}\" status -sb && git -C \"{}\" log -3 --oneline --decorate --color=always'); \
+                --preview 'git -C {q} status -sb && git -C {q} log -3 --oneline --decorate --color=always'); \
         [ -n \"$path\" ] || return 0; \
         printf 'Remove worktree %s? [y/N] ' \"$path\"; read -r answer < /dev/tty; \
         case \"$answer\" in y|Y) git worktree remove -- \"$path\" ;; *) echo 'Cancelled.' ;; esac; \
@@ -344,7 +344,7 @@
     ad = "!f() { git --no-pager diff; git add -p; }; f"
     aps = "!f() { git add -p && git status --short; }; f"
     apc = "!f() { git add -p && git commit \"$@\"; }; f"
-    apcm = "!f() { if [ $# -eq 0 ]; then echo '使い方: git apcm \"<メッセージ>\"' >&2; return 2; fi; git add -p && git commit -m \"$@\"; }; f"
+    apcm = "!f() { if [ $# -eq 0 ]; then echo '使い方: git apcm \"<メッセージ>\"' >&2; return 2; fi; git add -p && git commit -m \"$1\"; }; f"
 
     # --- 7. Stash ---
     sl = stash list
@@ -388,14 +388,14 @@
     # fzfで未ステージ差分を表示
     dfu = "!f() { \
         file=$(git diff --name-only | fzf --prompt='unstaged diff> ' \
-            --preview 'git diff --color=always -- {}'); \
+            --preview 'git diff --color=always -- {q}'); \
         [ -n \"$file\" ] || return 0; git diff -- \"$file\"; \
     }; f"
 
     # fzfでステージ済み差分を表示
     dfs = "!f() { \
         file=$(git diff --cached --name-only | fzf --prompt='staged diff> ' \
-            --preview 'git diff --cached --color=always -- {}'); \
+            --preview 'git diff --cached --color=always -- {q}'); \
         [ -n \"$file\" ] || return 0; git diff --cached -- \"$file\"; \
     }; f"
 
@@ -408,14 +408,14 @@
             fzf --prompt='target commit> ' --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$target_entry\" ] || return 0; target=${target_entry%% *}; \
         file=$(git diff --name-only \"$base\" \"$target\" | \
-            fzf --prompt='changed files> ' --preview 'git diff --color=always '$base' '$target' -- {}'); \
+            fzf --prompt='changed files> ' --preview 'git diff --color=always '\"$base\"' '\"$target\"' -- {q}'); \
         [ -n \"$file\" ] || return 0; git diff \"$base\" \"$target\" -- \"$file\"; \
     }; f"
 
     # fzfでコンフリクトファイルを選択してマージツールを起動
     conff = "!f() { \
         file=$(git diff --name-only --diff-filter=U | fzf --prompt='conflict> ' \
-            --preview 'git diff --cc --color=always -- {}'); \
+            --preview 'git diff --cc --color=always -- {q}'); \
         [ -n \"$file\" ] || return 0; git mergetool -- \"$file\"; \
     }; f"
 
