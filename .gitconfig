@@ -65,7 +65,7 @@
     aa = add -A
 
     # fzfで変更ファイルを複数選択してステージング
-    addf = "!f() { \
+    af = "!f() { \
         files=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u | \
             fzf --multi --prompt='stage files> ' \
                 --preview 'git diff --color=always HEAD -- {} || git diff --color=always --no-index -- /dev/null {}'); \
@@ -468,7 +468,7 @@
     aps = 29|コミット・変更|add -p後にステータスを表示する / 使い方: git aps
     apc = 30|コミット・変更|add -p後にコミットする / 使い方: git apc
     apcm = 31|コミット・変更|add -p後にメッセージ付きでコミットする / 使い方: git apcm "<メッセージ>"
-    addf = 34|コミット・変更|fzfで変更ファイルを選択してステージングする / 使い方: git addf
+    af = 34|コミット・変更|fzfで変更ファイルを選択してステージングする / 使い方: git af
     unstagef = 35|コミット・変更|fzfでステージ済みファイルを選択して解除する / 使い方: git unstagef
     revertf = 36|コミット・変更|fzfでコミットを選択してrevertする / 使い方: git revertf
     fixupf = 37|コミット・変更|fzfでコミットを選択してfixupコミットを作成する / 使い方: git fixupf
