@@ -22,7 +22,7 @@
     # fzfでローカルブランチを検索して切り替える
     swf = "!f() { \
         branch=$(git branch --format='%(refname:short)' | \
-            fzf --prompt='branch> ' \
+            fzf --height=90% --prompt='branch> ' \
                 --preview 'git log -5 --oneline --decorate --color=always {}'); \
         [ -n \"$branch\" ] || return 0; \
         git switch -- \"$branch\"; \
@@ -31,7 +31,7 @@
     # fzfで未追跡ファイルを選択して削除（確認あり）
     cleanf = "!f() { \
         files=$(git ls-files --others --exclude-standard --directory | \
-            fzf --multi --prompt='delete untracked> ' \
+            fzf --multi --height=90% --prompt='delete untracked> ' \
                 --preview 'git diff --color=always --no-index -- /dev/null {}'); \
         [ -n \"$files\" ] || return 0; \
         printf '%s\\n' \"$files\"; \
@@ -76,7 +76,7 @@
     # fzfでステージ済みファイルを複数選択してステージ解除
     unstagef = "!f() { \
         files=$(git diff --cached --name-only | \
-            fzf --multi --prompt='unstage files> ' \
+            fzf --multi --height=90% --prompt='unstage files> ' \
                 --preview 'git diff --cached --color=always -- {}'); \
         [ -n \"$files\" ] || return 0; \
         printf '%s\\n' \"$files\" | while IFS= read -r file; do git restore --staged -- \"$file\" || echo \"failed: $file\" >&2; done; \
@@ -85,7 +85,7 @@
     # fzfでコミットを選んでrevert（確認あり）
     revertf = "!f() { \
         entry=$(git log --all --no-merges --color=never --format='%h %s' | \
-            fzf --prompt='revert commit> ' \
+            fzf --height=90% --prompt='revert commit> ' \
                 --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
         commit=${entry%% *}; \
@@ -97,7 +97,7 @@
     # fzfでfixup対象のコミットを選択してfixupコミットを作成
     fixupf = "!f() { \
         entry=$(git log --all --no-merges --color=never --format='%h %s' | \
-            fzf --prompt='fixup target> ' \
+            fzf --height=90% --prompt='fixup target> ' \
                 --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
         git commit --fixup \"${entry%% *}\"; \
@@ -106,7 +106,7 @@
     # fzfで複数コミットを選択してcherry-pick
     cherryf = "!f() { \
         entries=$(git log --all --no-merges --color=never --format='%h %s' | \
-            fzf --multi --prompt='cherry-pick> ' \
+            fzf --multi --height=90% --prompt='cherry-pick> ' \
                 --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$entries\" ] || return 0; \
         printf '%s\\n' \"$entries\" | awk '{print $1}' | awk '{a[NR]=$1} END {for (i=NR;i>=1;i--) print a[i]}' | while IFS= read -r c; do [ -n \"$c\" ] || continue; git cherry-pick -- \"$c\" || break; done; \
@@ -123,7 +123,7 @@
     # fzfでコミットを検索して詳細表示
     lgf = "!f() { \
         entry=$(git log --all --color=never --format='%h %s (%cr) <%an>' | \
-            fzf --no-sort --prompt='commit> ' \
+            fzf --no-sort --height=90% --prompt='commit> ' \
                 --preview 'git show --stat --oneline --decorate --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
         git show --color=always \"${entry%% *}\"; \
@@ -132,7 +132,7 @@
     # fzfでreflogを検索
     reflogf = "!f() { \
         entry=$(git reflog --date=relative --format='%gd %h %gs (%cr)' | \
-            fzf --prompt='reflog> ' \
+            fzf --height=90% --prompt='reflog> ' \
                 --preview 'git show --stat --oneline --color=always {2}'); \
         [ -n \"$entry\" ] || return 0; \
         ref=${entry%% *}; git show --color=always \"$ref\"; \
@@ -141,7 +141,7 @@
     # fzfでファイルを選択して履歴を表示
     filelogf = "!f() { \
         file=$(git ls-files | \
-            fzf --prompt='file history> ' \
+            fzf --height=90% --prompt='file history> ' \
                 --preview 'git log --follow --oneline --decorate --color=always -- {}'); \
         [ -n \"$file\" ] || return 0; \
         git log --follow --oneline --decorate -- \"$file\"; \
@@ -180,7 +180,7 @@
     rbf = "!f() { \
         remote=$(git for-each-ref --format='%(refname:short)' refs/remotes | \
             grep -v '/HEAD$' | \
-            fzf --prompt='remote branch> ' --preview 'git log -5 --oneline --decorate --color=always {}'); \
+            fzf --height=90% --prompt='remote branch> ' --preview 'git log -5 --oneline --decorate --color=always {}'); \
         [ -n \"$remote\" ] || return 0; \
         local_branch=${remote#*/}; \
         if git show-ref --verify --quiet \"refs/heads/$local_branch\"; then \
@@ -200,7 +200,7 @@
         current=$(git branch --show-current); \
         branches=$(git branch --merged \"origin/$default_branch\" --format='%(refname:short)' | \
             grep -Fxv \"$default_branch\" | grep -Fxv \"$current\" | \
-            fzf --multi --prompt='merged branches> ' \
+            fzf --multi --height=90% --prompt='merged branches> ' \
                 --preview 'git log -3 --oneline --decorate --color=always {}'); \
         [ -n \"$branches\" ] || return 0; \
         printf '%s\\n' \"$branches\"; \
@@ -215,7 +215,7 @@
     mergef = "!f() { \
         current=$(git branch --show-current); \
         branch=$(git branch --format='%(refname:short)' | grep -Fxv \"$current\" | \
-            fzf --prompt='merge branch> ' \
+            fzf --height=90% --prompt='merge branch> ' \
                 --preview 'git log --oneline --decorate --color=always -20 HEAD..{}'); \
         [ -n \"$branch\" ] || return 0; \
         git merge -- \"$branch\"; \
@@ -225,7 +225,7 @@
     brdf = "!f() { \
         current=$(git branch --show-current); \
         branches=$(git branch --format='%(refname:short)' | grep -Fxv \"$current\" | \
-            fzf --multi --prompt='delete branches> ' \
+            fzf --multi --height=90% --prompt='delete branches> ' \
                 --preview 'git log -3 --oneline --decorate --color=always {}'); \
         [ -n \"$branches\" ] || return 0; \
         printf '%s\\n' \"$branches\"; \
@@ -306,7 +306,7 @@
     # worktreeのパスを選択してクリップボードにコピー
     wtp = "!f() { \
         path=$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' | \
-            fzf --prompt='worktree> '); \
+            fzf --height=90% --prompt='worktree> '); \
         [ -n \"$path\" ] || return 0; \
         if command -v clip.exe >/dev/null 2>&1; then printf '%s' \"$path\" | clip.exe; \
         elif command -v clip >/dev/null 2>&1; then printf '%s' \"$path\" | clip; \
@@ -318,7 +318,7 @@
     # fzfで既存ブランチを選択してworktreeに展開
     wtaf = "!f() { \
         branch=$(git branch --format='%(refname:short)' | \
-            fzf --prompt='worktree branch> ' \
+            fzf --height=90% --prompt='worktree branch> ' \
                 --preview 'git log -5 --oneline --decorate --color=always {}'); \
         [ -n \"$branch\" ] || return 0; \
         repo_root=$(git rev-parse --show-toplevel) || return 1; \
@@ -332,7 +332,7 @@
     # fzfでworktreeを選択して削除（確認あり）
     wtrf = "!f() { \
         path=$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' | tail -n +2 | \
-            fzf --prompt='remove worktree> ' \
+            fzf --height=90% --prompt='remove worktree> ' \
                 --preview 'git -C {} status -sb && git -C {} log -3 --oneline --decorate --color=always'); \
         [ -n \"$path\" ] || return 0; \
         printf 'Remove worktree %s? [y/N] ' \"$path\"; read -r answer < /dev/tty; \
@@ -354,7 +354,7 @@
     # fzfでstashを検索して適用（削除しない）
     saf = "!f() { \
         entry=$(git stash list --format='%gd %gs' | \
-            fzf --prompt='stash> ' --preview 'git stash show --stat --color=always {1}'); \
+            fzf --height=90% --prompt='stash> ' --preview 'git stash show --stat --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
         git stash apply \"${entry%% *}\"; \
     }; f"
@@ -362,7 +362,7 @@
     # fzfでstashを選択して削除
     sdf = "!f() { \
         entry=$(git stash list --format='%gd %gs' | \
-            fzf --prompt='drop stash> ' --preview 'git stash show --stat --color=always {1}'); \
+            fzf --height=90% --prompt='drop stash> ' --preview 'git stash show --stat --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
         stash=${entry%% *}; \
         printf 'Drop %s? [y/N] ' \"$stash\"; read -r answer < /dev/tty; \
@@ -379,7 +379,7 @@
     # fzfで基点を選択してautosquashリベース
     riaf = "!f() { \
         entry=$(git log --color=never --format='%h %s' | \
-            fzf --prompt='rebase base> ' \
+            fzf --height=90% --prompt='rebase base> ' \
                 --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$entry\" ] || return 0; \
         GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash \"${entry%% *}\"; \
@@ -387,14 +387,14 @@
 
     # fzfで未ステージ差分を表示
     dfu = "!f() { \
-        file=$(git diff --name-only | fzf --prompt='unstaged diff> ' \
+        file=$(git diff --name-only | fzf --height=90% --prompt='unstaged diff> ' \
             --preview 'git diff --color=always -- {}'); \
         [ -n \"$file\" ] || return 0; git diff -- \"$file\"; \
     }; f"
 
     # fzfでステージ済み差分を表示
     dfs = "!f() { \
-        file=$(git diff --cached --name-only | fzf --prompt='staged diff> ' \
+        file=$(git diff --cached --name-only | fzf --height=90% --prompt='staged diff> ' \
             --preview 'git diff --cached --color=always -- {}'); \
         [ -n \"$file\" ] || return 0; git diff --cached -- \"$file\"; \
     }; f"
@@ -402,19 +402,19 @@
     # fzfで2コミット間の変更ファイルを選択
     rangef = "!f() { \
         base_entry=$(git log --all --color=never --format='%h %s' | \
-            fzf --prompt='base commit> ' --preview 'git show --stat --oneline --color=always {1}'); \
+            fzf --height=90% --prompt='base commit> ' --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$base_entry\" ] || return 0; base=${base_entry%% *}; \
         target_entry=$(git log --all --color=never --format='%h %s' | \
-            fzf --prompt='target commit> ' --preview 'git show --stat --oneline --color=always {1}'); \
+            fzf --height=90% --prompt='target commit> ' --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$target_entry\" ] || return 0; target=${target_entry%% *}; \
         file=$(git diff --name-only \"$base\" \"$target\" | \
-            fzf --prompt='changed files> ' --preview 'git diff --color=always '\"$base\"' '\"$target\"' -- {}'); \
+            fzf --height=90% --prompt='changed files> ' --preview 'git diff --color=always '\"$base\"' '\"$target\"' -- {}'); \
         [ -n \"$file\" ] || return 0; git diff \"$base\" \"$target\" -- \"$file\"; \
     }; f"
 
     # fzfでコンフリクトファイルを選択してマージツールを起動
     conff = "!f() { \
-        file=$(git diff --name-only --diff-filter=U | fzf --prompt='conflict> ' \
+        file=$(git diff --name-only --diff-filter=U | fzf --height=90% --prompt='conflict> ' \
             --preview 'git diff --cc --color=always -- {}'); \
         [ -n \"$file\" ] || return 0; git mergetool -- \"$file\"; \
     }; f"
