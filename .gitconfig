@@ -431,6 +431,23 @@
             else echo 'Error: clipboard command not found.' >&2; exit 1; fi; \
         } && echo \"Copied recent $count HEAD hash(es) to clipboard.\"; \
     }; _hh"
+
+    # fzfでコミットを選択してハッシュをコピー
+    hhf = "!f() { \
+        entry=$(git log --color=never --format='%h %s (%cr) <%an>' | \
+            fzf --no-sort --height=90% --prompt='commit hash> ' \
+                --preview 'git show --stat --oneline --decorate --color=always {1}'); \
+        [ -n \"$entry\" ] || return 0; \
+        full=$(git rev-parse --verify --quiet \"${entry%% *}^{commit}\") || return 1; \
+        printf '%s' \"$full\" | { \
+            if command -v clip.exe >/dev/null 2>&1; then clip.exe; \
+            elif command -v clip >/dev/null 2>&1; then clip; \
+            elif command -v pbcopy >/dev/null 2>&1; then pbcopy; \
+            elif command -v xclip >/dev/null 2>&1; then xclip -sel clip; \
+            else echo 'Error: clipboard command not found.' >&2; exit 1; fi; \
+        } && echo \"Copied: $full\"; \
+    }; f"
+
     lf = !"git ls-files -z | xargs -0 wc -l | sort -rn | head -n 20"
     cf = diff --name-only --diff-filter=U
 
@@ -530,6 +547,7 @@
     cf = 103|分析・調査|コンフリクトファイル名を表示する / 使い方: git cf
     cfe = 104|分析・調査|コンフリクトファイルをVS Codeで開く / 使い方: git cfe
     hotfiles = 105|分析・調査|直近1か月で変更頻度の高いファイルを表示する / 使い方: git hotfiles
+    hhf = 106|分析・調査|fzfでコミットを選択してハッシュをコピーする / 使い方: git hhf
 
     # --- その他 ---
     db = 110|その他|リモートのデフォルトブランチに切り替える / 使い方: git db
