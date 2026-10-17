@@ -35,7 +35,8 @@ function ff {
             --scheme=path `
             --prompt='ff> ' `
             --header='Enter: 開く/移動  |  Ctrl+E: 実行  |  Esc: キャンセル' `
-            --preview='bat --color=always --style=numbers -- "{}" 2>$null' `
+            --with-shell 'sh -c' `
+            --preview='bat --color=always --style=numbers -- {} 2>/dev/null' `
             --preview-window='right,50%,border-left' `
             --expect=ctrl-e
     )

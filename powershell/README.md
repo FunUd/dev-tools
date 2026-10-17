@@ -22,3 +22,5 @@ Import-Module '<このリポジトリのパス>/powershell/DevTools.psm1'
 | 関数 | 説明 | 依存 |
 | ---- | ---- | ---- |
 | `ff` | `fd` + `fzf` + `bat` でファイルを探す。Enter: 開く/移動、Ctrl+E: 実行 | fd, fzf, bat, code（任意） |
+| `gwt` | `git worktree` の一覧を fzf で選んで移動する。Enter: 移動、Ctrl+E: VS Code で開く | git, fzf, code（任意） |
+| `cpf` | `fd` + `fzf` でファイルを選んでパスをコピーする。Tab: 複数選択 | fd, fzf, bat |
