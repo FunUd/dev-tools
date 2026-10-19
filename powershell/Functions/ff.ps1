@@ -26,17 +26,36 @@ function ff {
         return
     }
 
+    # 一覧は「ファイル名 (ディレクトリ)」+ TAB + 実パス に加工する
+    # （深いパスでもファイル名が隠れないようにするため。選択値はTAB区切りの2列目を使う）
+    $display = foreach ($item in $items) {
+        $trimmed = $item.TrimEnd('/', '\')
+        $slashIndex = $trimmed.LastIndexOfAny([char[]]@('/', '\'))
+        if ($slashIndex -ge 0) {
+            $name = $trimmed.Substring($slashIndex + 1)
+            $dir = $trimmed.Substring(0, $slashIndex) -replace '^[.][/\\]', ''
+        }
+        else {
+            $name = $trimmed
+            $dir = '.'
+        }
+        $suffix = if ($item.EndsWith('/') -or $item.EndsWith('\')) { '/' } else { '' }
+        "$name$suffix  ($dir)`t$item"
+    }
+
     # fzf: Enter または Ctrl+E で選択を返す
     $result = @(
-        $items | fzf `
+        $display | fzf `
             --layout=reverse `
             --height=80% `
             --border `
             --scheme=path `
+            --delimiter='\t' `
+            --with-nth=1 `
             --prompt='ff> ' `
             --header='Enter: 開く/移動  |  Ctrl+E: 実行  |  Esc: キャンセル' `
             --with-shell 'sh -c' `
-            --preview='bat --color=always --style=numbers -- {} 2>/dev/null' `
+            --preview='bat --color=always --style=numbers -- {2} 2>/dev/null' `
             --preview-window='right,50%,border-left' `
             --expect=ctrl-e
     )
@@ -58,6 +77,9 @@ function ff {
     if ([string]::IsNullOrWhiteSpace($selected)) {
         return
     }
+
+    # TAB区切りの2列目（実パス）を取り出す
+    $selected = ($selected -split "`t")[-1]
 
     $path = Join-Path (Get-Location).Path $selected
 

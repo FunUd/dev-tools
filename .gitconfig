@@ -29,15 +29,18 @@
     }; f"
 
     # fzfで未追跡ファイルを選択して削除（確認あり）
+    # 一覧は「ファイル名 (ディレクトリ)」+ TAB + 実パス に加工（選択値は2列目）
     cleanf = "!f() { \
         files=$(git ls-files --others --exclude-standard --directory | \
+            awk '{ s=$0; sub(/\\/+$/, \"\", s); n=s; sub(/.*\\//, \"\", n); d=s; if (sub(/\\/[^\\/]*$/, \"\", d) == 0) d=\".\"; printf \"%s%s  (%s)\\t%s\\n\", n, ($0 ~ /\\/$/ ? \"/\" : \"\"), d, $0 }' | \
             fzf --multi --height=90% --prompt='delete untracked> ' \
-                --preview 'git diff --color=always --no-index -- /dev/null {}'); \
+                --scheme=path --delimiter='\\t' --with-nth=1 \
+                --preview 'git diff --color=always --no-index -- /dev/null {2}'); \
         [ -n \"$files\" ] || return 0; \
-        printf '%s\\n' \"$files\"; \
+        printf '%s\\n' \"$files\" | cut -f1; \
         printf 'Delete selected untracked files? [y/N] '; read -r answer < /dev/tty; \
         case \"$answer\" in \
-            y|Y) printf '%s\\n' \"$files\" | while IFS= read -r file; do git clean -fd -- \"$file\" || echo \"failed: $file\" >&2; done ;; \
+            y|Y) printf '%s\\n' \"$files\" | cut -f2 | while IFS= read -r file; do git clean -fd -- \"$file\" || echo \"failed: $file\" >&2; done ;; \
             *) echo 'Cancelled.' ;; \
         esac; \
     }; f"
@@ -65,21 +68,27 @@
     aa = add -A
 
     # fzfで変更ファイルを複数選択してステージング
+    # 一覧は「ファイル名 (ディレクトリ)」+ TAB + 実パス に加工（選択値は2列目）
     af = "!f() { \
         files=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u | \
+            awk '{ s=$0; sub(/\\/+$/, \"\", s); n=s; sub(/.*\\//, \"\", n); d=s; if (sub(/\\/[^\\/]*$/, \"\", d) == 0) d=\".\"; printf \"%s%s  (%s)\\t%s\\n\", n, ($0 ~ /\\/$/ ? \"/\" : \"\"), d, $0 }' | \
             fzf --multi --height=90% --prompt='stage files> ' \
-                --preview 'git diff --color=always HEAD -- {} || git diff --color=always --no-index -- /dev/null {}'); \
+                --scheme=path --delimiter='\\t' --with-nth=1 \
+                --preview 'git diff --color=always HEAD -- {2} || git diff --color=always --no-index -- /dev/null {2}'); \
         [ -n \"$files\" ] || return 0; \
-        printf '%s\\n' \"$files\" | while IFS= read -r file; do git add -- \"$file\" || echo \"failed: $file\" >&2; done; \
+        printf '%s\\n' \"$files\" | cut -f2 | while IFS= read -r file; do git add -- \"$file\" || echo \"failed: $file\" >&2; done; \
     }; f"
 
     # fzfでステージ済みファイルを複数選択してステージ解除
+    # 一覧は「ファイル名 (ディレクトリ)」+ TAB + 実パス に加工（選択値は2列目）
     unstagef = "!f() { \
         files=$(git diff --cached --name-only | \
+            awk '{ s=$0; sub(/\\/+$/, \"\", s); n=s; sub(/.*\\//, \"\", n); d=s; if (sub(/\\/[^\\/]*$/, \"\", d) == 0) d=\".\"; printf \"%s%s  (%s)\\t%s\\n\", n, ($0 ~ /\\/$/ ? \"/\" : \"\"), d, $0 }' | \
             fzf --multi --height=90% --prompt='unstage files> ' \
-                --preview 'git diff --cached --color=always -- {}'); \
+                --scheme=path --delimiter='\\t' --with-nth=1 \
+                --preview 'git diff --cached --color=always -- {2}'); \
         [ -n \"$files\" ] || return 0; \
-        printf '%s\\n' \"$files\" | while IFS= read -r file; do git restore --staged -- \"$file\" || echo \"failed: $file\" >&2; done; \
+        printf '%s\\n' \"$files\" | cut -f2 | while IFS= read -r file; do git restore --staged -- \"$file\" || echo \"failed: $file\" >&2; done; \
     }; f"
 
     # fzfでコミットを選んでrevert（確認あり）
@@ -139,10 +148,14 @@
     }; f"
 
     # fzfでファイルを選択して履歴を表示
+    # 一覧は「ファイル名 (ディレクトリ)」+ TAB + 実パス に加工（選択値は2列目）
     filelogf = "!f() { \
         file=$(git ls-files | \
+            awk '{ s=$0; sub(/\\/+$/, \"\", s); n=s; sub(/.*\\//, \"\", n); d=s; if (sub(/\\/[^\\/]*$/, \"\", d) == 0) d=\".\"; printf \"%s%s  (%s)\\t%s\\n\", n, ($0 ~ /\\/$/ ? \"/\" : \"\"), d, $0 }' | \
             fzf --height=90% --prompt='file history> ' \
-                --preview 'git log --follow --oneline --decorate --color=always -- {}'); \
+                --scheme=path --delimiter='\\t' --with-nth=1 \
+                --preview 'git log --follow --oneline --decorate --color=always -- {2}' | \
+            cut -f2); \
         [ -n \"$file\" ] || return 0; \
         git log --follow --oneline --decorate -- \"$file\"; \
     }; f"
@@ -386,16 +399,26 @@
     }; f"
 
     # fzfで未ステージ差分を表示
+    # 一覧は「ファイル名 (ディレクトリ)」+ TAB + 実パス に加工（選択値は2列目）
     dfu = "!f() { \
-        file=$(git diff --name-only | fzf --height=90% --prompt='unstaged diff> ' \
-            --preview 'git diff --color=always -- {}'); \
+        file=$(git diff --name-only | \
+            awk '{ s=$0; sub(/\\/+$/, \"\", s); n=s; sub(/.*\\//, \"\", n); d=s; if (sub(/\\/[^\\/]*$/, \"\", d) == 0) d=\".\"; printf \"%s%s  (%s)\\t%s\\n\", n, ($0 ~ /\\/$/ ? \"/\" : \"\"), d, $0 }' | \
+            fzf --height=90% --prompt='unstaged diff> ' \
+                --scheme=path --delimiter='\\t' --with-nth=1 \
+                --preview 'git diff --color=always -- {2}' | \
+            cut -f2); \
         [ -n \"$file\" ] || return 0; git diff -- \"$file\"; \
     }; f"
 
     # fzfでステージ済み差分を表示
+    # 一覧は「ファイル名 (ディレクトリ)」+ TAB + 実パス に加工（選択値は2列目）
     dfs = "!f() { \
-        file=$(git diff --cached --name-only | fzf --height=90% --prompt='staged diff> ' \
-            --preview 'git diff --cached --color=always -- {}'); \
+        file=$(git diff --cached --name-only | \
+            awk '{ s=$0; sub(/\\/+$/, \"\", s); n=s; sub(/.*\\//, \"\", n); d=s; if (sub(/\\/[^\\/]*$/, \"\", d) == 0) d=\".\"; printf \"%s%s  (%s)\\t%s\\n\", n, ($0 ~ /\\/$/ ? \"/\" : \"\"), d, $0 }' | \
+            fzf --height=90% --prompt='staged diff> ' \
+                --scheme=path --delimiter='\\t' --with-nth=1 \
+                --preview 'git diff --cached --color=always -- {2}' | \
+            cut -f2); \
         [ -n \"$file\" ] || return 0; git diff --cached -- \"$file\"; \
     }; f"
 
@@ -408,14 +431,23 @@
             fzf --height=90% --prompt='target commit> ' --preview 'git show --stat --oneline --color=always {1}'); \
         [ -n \"$target_entry\" ] || return 0; target=${target_entry%% *}; \
         file=$(git diff --name-only \"$base\" \"$target\" | \
-            fzf --height=90% --prompt='changed files> ' --preview 'git diff --color=always '\"$base\"' '\"$target\"' -- {}'); \
+            awk '{ s=$0; sub(/\\/+$/, \"\", s); n=s; sub(/.*\\//, \"\", n); d=s; if (sub(/\\/[^\\/]*$/, \"\", d) == 0) d=\".\"; printf \"%s%s  (%s)\\t%s\\n\", n, ($0 ~ /\\/$/ ? \"/\" : \"\"), d, $0 }' | \
+            fzf --height=90% --prompt='changed files> ' \
+                --scheme=path --delimiter='\\t' --with-nth=1 \
+                --preview 'git diff --color=always '\"$base\"' '\"$target\"' -- {2}' | \
+            cut -f2); \
         [ -n \"$file\" ] || return 0; git diff \"$base\" \"$target\" -- \"$file\"; \
     }; f"
 
     # fzfでコンフリクトファイルを選択してマージツールを起動
+    # 一覧は「ファイル名 (ディレクトリ)」+ TAB + 実パス に加工（選択値は2列目）
     conff = "!f() { \
-        file=$(git diff --name-only --diff-filter=U | fzf --height=90% --prompt='conflict> ' \
-            --preview 'git diff --cc --color=always -- {}'); \
+        file=$(git diff --name-only --diff-filter=U | \
+            awk '{ s=$0; sub(/\\/+$/, \"\", s); n=s; sub(/.*\\//, \"\", n); d=s; if (sub(/\\/[^\\/]*$/, \"\", d) == 0) d=\".\"; printf \"%s%s  (%s)\\t%s\\n\", n, ($0 ~ /\\/$/ ? \"/\" : \"\"), d, $0 }' | \
+            fzf --height=90% --prompt='conflict> ' \
+                --scheme=path --delimiter='\\t' --with-nth=1 \
+                --preview 'git diff --cc --color=always -- {2}' | \
+            cut -f2); \
         [ -n \"$file\" ] || return 0; git mergetool -- \"$file\"; \
     }; f"
 
